@@ -1,10 +1,14 @@
 use winit::event::{Event, KeyboardInput, WindowEvent};
 
 mod render;
-mod window;
+mod screen;
+
+pub struct Config {
+    pub background_color: wgpu::Color,
+}
 
 pub async fn run() {
-    env_logger::init();
+    tracing_subscriber::fmt::init();
 
     let event_loop = winit::event_loop::EventLoop::new();
 
@@ -12,13 +16,16 @@ pub async fn run() {
         .with_title("Nyat")
         .build(&event_loop)
         .unwrap();
-    let win = window::Window::new(window).await;
-
+    let config = Config {
+        background_color: wgpu::Color::BLACK,
+    };
+    let mut screen = screen::Screen::new(window, config).await;
+    screen.color_background();
     event_loop.run(move |event, _, control_flow| match event {
         Event::WindowEvent {
             ref event,
             window_id,
-        } if window_id == win.window().id() => match event {
+        } if window_id == screen.window().id() => match event {
             WindowEvent::CloseRequested
             | WindowEvent::KeyboardInput {
                 input:
@@ -31,9 +38,17 @@ pub async fn run() {
             } => {
                 *control_flow = winit::event_loop::ControlFlow::Exit;
             }
+            WindowEvent::Resized(size) => {
+                screen.resize(*size);
+                screen.render();
+            }
+            WindowEvent::ScaleFactorChanged { new_inner_size, .. } => {
+                // TODO: seperate scale setting?
+                screen.resize(**new_inner_size);
+                screen.render();
+            }
             _ => (),
         },
         _ => (),
     });
 }
-
