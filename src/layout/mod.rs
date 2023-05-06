@@ -16,6 +16,47 @@ impl Grid {
             size: (width, height),
         }
     }
+
+    pub fn resize(&mut self, width: u32, height: u32) {
+        self.rows.resize(
+            height as usize,
+            Row::new(vec![AnsiChar::default(); width as usize]),
+        );
+        for row in self.rows.iter_mut() {
+            row.length = width;
+            row.row.resize(width as usize, AnsiChar::default());
+        }
+        self.size = (width, height);
+    }
+
+    pub fn write(&mut self, buffer: Vec<u8>) {
+        let text = String::from_utf8(buffer).unwrap();
+        let mut iter = text.chars();
+
+        let (mut x, mut y) = (0, 0);
+
+        while let Some(c) = iter.next() {
+            match c {
+                '\n' => {
+                    x = 0;
+                    y += 1;
+                }
+                '\r' => {
+                    x = 0;
+                }
+                _ => {
+                    if x < self.size.0 as usize && y < self.size.1 as usize {
+                        self.rows[y][x] = AnsiChar::new(
+                            c.to_string(),
+                            [1.0, 1.0, 1.0, 1.0],
+                            [0.0, 0.0, 0.0, 1.0],
+                        );
+                        x += 1;
+                    }
+                }
+            }
+        }
+    }
 }
 
 impl Index<usize> for Grid {
@@ -95,5 +136,30 @@ impl Default for AnsiChar {
             foreground: [0.0, 0.0, 0.0, 1.0],
             background: [0.0, 0.0, 0.0, 1.0],
         }
+    }
+}
+
+#[derive(Debug)]
+pub struct Layout {
+    pub scale: f32,
+    pub font_size: f32,
+    pub px_height: f32,
+    pub px_width: f32,
+}
+
+impl Layout {
+    pub fn new(scale: f32, font_size: f32, px_height: f32, px_width: f32) -> Self {
+        Self {
+            scale,
+            font_size,
+            px_height,
+            px_width,
+        }
+    }
+
+    pub fn calculate(&self) -> (u32, u32) {
+        let text_width = ((self.px_width / self.scale) / (self.font_size / 2.0)) * 0.96;
+        let text_height = (self.px_height as f32 / self.scale) / self.font_size;
+        (text_width as u32, text_height as u32)
     }
 }

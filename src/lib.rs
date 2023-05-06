@@ -1,6 +1,8 @@
 // runs the program and for now handles event loop, later event loop will be in screen
-use layout::AnsiChar;
-use winit::event::{Event, KeyboardInput, WindowEvent};
+use winit::{
+    dpi::PhysicalSize,
+    event::{ElementState, Event, KeyboardInput, WindowEvent},
+};
 
 mod layout;
 mod render;
@@ -20,6 +22,7 @@ pub async fn run() {
 
     let window = winit::window::WindowBuilder::new()
         .with_title("Nyat")
+        .with_min_inner_size(PhysicalSize::new(50, 20))
         .build(&event_loop)
         .unwrap();
     let config = Config {
@@ -29,17 +32,6 @@ pub async fn run() {
     };
     let mut screen = screen::Screen::new(window, config).await;
     screen.color_background();
-
-    screen.terminal.grid[0][0].character = "0".to_string();
-    for i in 1..screen.terminal.height {
-        screen.terminal.grid[i as usize][0].character = i.to_string();
-        screen.terminal.grid[i as usize][0].foreground[0] = 1.0;
-    }
-
-    for i in 1..screen.terminal.width {
-        screen.terminal.grid[0][i as usize].character = i.to_string()[0..1].to_string();
-        screen.terminal.grid[0][i as usize].foreground[0] = 1.0;
-    }
 
     println!(
         "height: {}, width: {}",
@@ -58,27 +50,29 @@ pub async fn run() {
             ref event,
             window_id,
         } if window_id == screen.window().id() => match event {
-            WindowEvent::CloseRequested
-            | WindowEvent::KeyboardInput {
-                input:
-                    KeyboardInput {
-                        virtual_keycode: Some(winit::event::VirtualKeyCode::Escape),
-                        state: winit::event::ElementState::Pressed,
-                        ..
-                    },
-                ..
-            } => {
+            WindowEvent::CloseRequested => {
                 *control_flow = winit::event_loop::ControlFlow::Exit;
             }
             WindowEvent::Resized(size) => {
                 screen.resize(*size);
-                screen.window().request_redraw();
             }
             WindowEvent::ScaleFactorChanged { new_inner_size, .. } => {
                 // TODO: seperate scale setting?
                 screen.resize(**new_inner_size);
-                screen.window().request_redraw();
             }
+            WindowEvent::KeyboardInput {
+                device_id,
+                is_synthetic,
+                input:
+                    KeyboardInput {
+                        virtual_keycode,
+                        state: ElementState::Pressed,
+                        ..
+                    },
+            } => match virtual_keycode {
+                Some(keycode) => screen.key_pressed(keycode),
+                None => {}
+            },
             _ => (),
         },
         Event::RedrawRequested(_) => {
