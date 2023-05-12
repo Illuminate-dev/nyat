@@ -4,6 +4,8 @@ use winit::{
     event::{ElementState, Event, KeyboardInput, WindowEvent},
 };
 
+mod config;
+mod display;
 mod layout;
 mod render;
 mod screen;
@@ -61,14 +63,13 @@ pub async fn run() {
                 screen.resize(**new_inner_size);
             }
             WindowEvent::KeyboardInput {
-                device_id,
-                is_synthetic,
                 input:
                     KeyboardInput {
                         virtual_keycode,
                         state: ElementState::Pressed,
                         ..
                     },
+                ..
             } => match virtual_keycode {
                 Some(keycode) => screen.key_pressed(keycode),
                 None => {}

@@ -28,35 +28,6 @@ impl Grid {
         }
         self.size = (width, height);
     }
-
-    pub fn write(&mut self, buffer: Vec<u8>) {
-        let text = String::from_utf8(buffer).unwrap();
-        let mut iter = text.chars();
-
-        let (mut x, mut y) = (0, 0);
-
-        while let Some(c) = iter.next() {
-            match c {
-                '\n' => {
-                    x = 0;
-                    y += 1;
-                }
-                '\r' => {
-                    x = 0;
-                }
-                _ => {
-                    if x < self.size.0 as usize && y < self.size.1 as usize {
-                        self.rows[y][x] = AnsiChar::new(
-                            c.to_string(),
-                            [1.0, 1.0, 1.0, 1.0],
-                            [0.0, 0.0, 0.0, 1.0],
-                        );
-                        x += 1;
-                    }
-                }
-            }
-        }
-    }
 }
 
 impl Index<usize> for Grid {
@@ -73,7 +44,7 @@ impl IndexMut<usize> for Grid {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Row<T> {
     pub length: u32,
     row: Vec<T>,
@@ -106,35 +77,54 @@ impl<T> IndexMut<usize> for Row<T> {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct AnsiChar {
-    pub character: String,
+    pub character: char,
+    char_string: String,
     pub foreground: [f32; 4],
     pub background: [f32; 4],
 }
 
 impl AnsiChar {
-    pub fn new(character: String, foreground: [f32; 4], background: [f32; 4]) -> Self {
+    pub fn new(character: char, foreground: [f32; 4], background: [f32; 4]) -> Self {
         Self {
             character,
             foreground,
             background,
+            char_string: character.to_string(),
         }
     }
 
     pub fn text<'a>(&'a self, scale: f32) -> Text<'a> {
-        Text::new(&self.character)
+        Text::new(&self.char_string)
             .with_color(self.foreground)
             .with_scale(PxScale::from(scale))
+    }
+
+    pub fn with_fg_color(&mut self, color: [f32; 4]) -> Self {
+        self.foreground = color;
+        self.to_owned()
+    }
+
+    pub fn with_bg_color(&mut self, color: [f32; 4]) -> Self {
+        self.background = color;
+        self.to_owned()
+    }
+
+    pub fn with_char(&mut self, c: char) -> Self {
+        self.character = c;
+        self.char_string = self.character.to_string();
+        self.to_owned()
     }
 }
 
 impl Default for AnsiChar {
     fn default() -> Self {
         Self {
-            character: " ".to_string(),
+            character: ' ',
             foreground: [0.0, 0.0, 0.0, 1.0],
             background: [0.0, 0.0, 0.0, 1.0],
+            char_string: ' '.to_string(),
         }
     }
 }

@@ -1,8 +1,8 @@
 use wgpu::Color;
 // renderer has a height, width, and scale. It uses these values to render text to screen
-use wgpu_glyph::{ab_glyph::FontArc, OwnedText, Section, Text};
+use wgpu_glyph::{ab_glyph::FontArc, Section, Text};
 
-use crate::layout::{AnsiChar, Grid};
+use crate::layout::Grid;
 
 mod state;
 

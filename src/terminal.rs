@@ -7,7 +7,10 @@ use nix::{
 
 // holds grid and later on will hold the cursor position
 // Also will hold psuedo terminal
-use crate::layout::{Grid, Layout};
+use crate::{
+    display::display_ansi_text,
+    layout::{Grid, Layout},
+};
 
 #[derive(Debug)]
 pub struct Terminal {
@@ -34,7 +37,8 @@ impl Terminal {
             match Self::read_fd(stdout_fd) {
                 Some(mut x) => read_buffer.append(&mut x),
                 None => {
-                    visible_grid.write(read_buffer);
+                    let string = String::from_utf8(read_buffer).expect("Invalid UTF-8");
+                    display_ansi_text(&mut visible_grid, string);
                     break;
                 }
             }
@@ -79,7 +83,7 @@ impl Terminal {
         let read_result = nix::unistd::read(fd, &mut buf);
         match read_result {
             Ok(bytes_read) => Some(buf[..bytes_read].to_vec()),
-            Err(e) => None,
+            Err(_) => None,
         }
     }
 
