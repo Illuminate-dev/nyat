@@ -8,7 +8,7 @@ use self::enums::AnsiSequence;
 mod enums;
 mod parsers;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 enum AnsiMode {
     Print,
     Title,
@@ -17,6 +17,7 @@ enum AnsiMode {
 #[derive(Debug)]
 struct Setting {
     pub color: [f32; 4],
+    pub bg_color: [f32; 4],
     pub mode: AnsiMode,
     pub pallete: ColorPallete,
 }
@@ -25,6 +26,7 @@ impl Default for Setting {
     fn default() -> Self {
         Self {
             color: [1.0, 1.0, 1.0, 1.0],
+            bg_color: [0.0, 0.0, 0.0, 1.0],
             mode: AnsiMode::Print,
             pallete: ColorPallete::default(),
         }
@@ -32,7 +34,18 @@ impl Default for Setting {
 }
 
 impl Setting {
-    pub fn update(&mut self, code: u8) {
+    pub fn set_graphics_mode(&mut self, code: Vec<u8>) {
+        match code.len() {
+            0 => self.color = self.pallete.white,
+            x => {
+                for i in 0..x {
+                    self.set_graphics_mode_1(code[i]);
+                }
+            }
+        }
+    }
+
+    fn set_graphics_mode_1(&mut self, code: u8) {
         match code {
             0 => self.color = self.pallete.white,
             30 => self.color = self.pallete.black,
@@ -43,7 +56,15 @@ impl Setting {
             35 => self.color = self.pallete.magenta,
             36 => self.color = self.pallete.cyan,
             37 => self.color = self.pallete.white,
-            _ => self.color = self.pallete.white,
+            40 => self.bg_color = self.pallete.black,
+            41 => self.bg_color = self.pallete.red,
+            42 => self.bg_color = self.pallete.green,
+            43 => self.bg_color = self.pallete.yellow,
+            44 => self.bg_color = self.pallete.blue,
+            45 => self.bg_color = self.pallete.magenta,
+            46 => self.bg_color = self.pallete.cyan,
+            47 => self.bg_color = self.pallete.white,
+            _ => {}
         }
     }
 }
@@ -55,10 +76,11 @@ pub fn display_ansi_text(grid: &mut Grid, text: String) {
     let mut x = 0;
     let mut y = 0;
 
-    let (input, ansichars) = parsers::parse(&text).unwrap();
+    let (_input, ansichars) = parsers::parse(&text).unwrap();
 
     for c in ansichars {
         match c {
+            AnsiSequence::Character(c) if setting.mode == AnsiMode::Title => {}
             AnsiSequence::Character(c) => match c {
                 '\n' => {
                     y += 1;
@@ -68,16 +90,31 @@ pub fn display_ansi_text(grid: &mut Grid, text: String) {
                     x = 0;
                 }
                 _ => {
+                    if c == 't' {
+                        println!("x: {}, y: {}, {:?}", x, y, setting.mode);
+                    }
                     if y < grid.size.1 && x < grid.size.0 {
                         grid[y as usize][x as usize] =
-                            AnsiChar::new(c, setting.color, [0.0, 0.0, 0.0, 1.0]);
+                            AnsiChar::new(c, setting.color, setting.bg_color);
                         x += 1;
                     } else if y < grid.size.0 {
                         y += 1;
                         x = 0;
+                        grid[y as usize][x as usize] =
+                            AnsiChar::new(c, setting.color, setting.bg_color);
+                        x += 1;
                     }
                 }
             },
+            AnsiSequence::SetGraphicsMode(codes) => {
+                setting.set_graphics_mode(codes);
+            }
+            AnsiSequence::SetTitleMode => {
+                setting.mode = AnsiMode::Title;
+            }
+            AnsiSequence::Bell => {
+                setting.mode = AnsiMode::Print;
+            }
             _ => {}
         }
     }

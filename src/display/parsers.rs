@@ -104,7 +104,7 @@ fn graphics_mode(input: &str) -> Res {
 
     let (mut input, _) = tag("[")(input)?;
 
-    for i in 1..=5 {
+    for _ in 1..=5 {
         (input, _) = opt(tag(";"))(input)?;
 
         let x = digit0(input)?;
@@ -113,15 +113,6 @@ fn graphics_mode(input: &str) -> Res {
 
         match n.parse::<u8>() {
             Ok(n) => v.push(n),
-            // no graphics mode with 4 numbers
-            // so if the fifth iteration gives an error
-            // but not the fourth, the input is faulty
-            Err(_) if i == 5 => {
-                return Err(nom::Err::Error(nom::error::Error::new(
-                    input,
-                    nom::error::ErrorKind::NoneOf,
-                )))
-            }
             Err(_) => break,
         }
     }
@@ -130,6 +121,18 @@ fn graphics_mode(input: &str) -> Res {
 
     Ok((input, AnsiSequence::SetGraphicsMode(v)))
 }
+
+tag_parser!(set_title_mode, "]0;", AnsiSequence::SetTitleMode);
+tag_parser!(
+    set_bracketed_paste_mode_on,
+    "[?2004h",
+    AnsiSequence::SetBracketedPasteMode(true)
+);
+tag_parser!(
+    set_bracketed_paste_mode_off,
+    "[?2004l",
+    AnsiSequence::SetBracketedPasteMode(false)
+);
 
 fn combined(input: &str) -> Res {
     alt((
@@ -140,6 +143,9 @@ fn combined(input: &str) -> Res {
         cursor_forward,
         cursor_backward,
         graphics_mode,
+        set_title_mode,
+        set_bracketed_paste_mode_on,
+        set_bracketed_paste_mode_off,
     ))(input)
 }
 
@@ -155,8 +161,10 @@ fn parse_char(input: &str) -> Res {
     Ok((input, AnsiSequence::Character(c)))
 }
 
+tag_parser!(parse_bel, "\u{7}", AnsiSequence::Bell);
+
 pub fn parse(input: &str) -> IResult<&str, Vec<AnsiSequence>> {
-    many0(alt((parse_escape, parse_char)))(input)
+    many0(alt((parse_escape, parse_bel, parse_char)))(input)
 }
 
 #[cfg(test)]
@@ -221,10 +229,7 @@ mod tests {
         );
         assert_eq!(
             graphics_mode("[1;2;3;4m"),
-            Err(nom::Err::Error(nom::error::Error::new(
-                "m",
-                nom::error::ErrorKind::NoneOf
-            )))
+            Ok(("", AnsiSequence::SetGraphicsMode(vec![1, 2, 3, 4])))
         );
         assert_eq!(
             graphics_mode("[1;2;3;4;5m"),
@@ -236,6 +241,29 @@ mod tests {
                 ";6m",
                 nom::error::ErrorKind::Tag
             )))
+        );
+    }
+
+    #[test]
+    fn test_title_mode() {
+        assert_eq!(set_title_mode("]0;"), Ok(("", AnsiSequence::SetTitleMode)));
+    }
+
+    #[test]
+    fn test_bell() {
+        assert_eq!(parse_bel("\u{7}"), Ok(("", AnsiSequence::Bell)));
+    }
+
+    #[test]
+    fn test_bracketed_paste_mode() {
+        assert_eq!(
+            set_bracketed_paste_mode_on("[?2004h"),
+            Ok(("", AnsiSequence::SetBracketedPasteMode(true)))
+        );
+
+        assert_eq!(
+            set_bracketed_paste_mode_off("[?2004l"),
+            Ok(("", AnsiSequence::SetBracketedPasteMode(false)))
         );
     }
 

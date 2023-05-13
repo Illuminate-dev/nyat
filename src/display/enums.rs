@@ -8,4 +8,7 @@ pub enum AnsiSequence {
     CursorForward(u16),
     CursorBackward(u16),
     SetGraphicsMode(Vec<u8>),
+    SetTitleMode,
+    SetBracketedPasteMode(bool),
+    Bell,
 }
