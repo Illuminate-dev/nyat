@@ -3,6 +3,11 @@ use crate::{
     layout::{AnsiChar, Grid},
 };
 
+use self::enums::AnsiSequence;
+
+mod enums;
+mod parsers;
+
 #[derive(Debug)]
 enum AnsiMode {
     Print,
@@ -44,72 +49,36 @@ impl Setting {
 }
 
 pub fn display_ansi_text(grid: &mut Grid, text: String) {
-    let mut chars = text.chars();
-    let mut ansichars = vec![];
     // TODO: take config input
     let mut setting = Setting::default();
-
-    while let Some(c) = chars.next() {
-        match c {
-            // Ansi escape character
-            '\x1b' => match chars.next() {
-                Some('[') => match chars.next() {
-                    Some(n @ '0'..='9') => {
-                        let mut num = String::new();
-                        num.push(n);
-                        while let Some(n) = chars.next() {
-                            match n {
-                                '0'..='9' => num.push(n),
-                                ';' => {}
-                                'm' => {
-                                    println!("num: {}", num);
-                                    let num = num.parse::<u8>().unwrap();
-                                    setting.update(num);
-                                    break;
-                                }
-                                _ => break,
-                            }
-                        }
-                    }
-                    _ => {}
-                },
-                _ => {}
-            },
-            // Normal character
-            _ => match setting.mode {
-                AnsiMode::Print => ansichars.push(
-                    AnsiChar::default()
-                        .with_char(c)
-                        .with_fg_color(setting.color),
-                ),
-                AnsiMode::Title => { // TODO
-                }
-            },
-        }
-    }
 
     let mut x = 0;
     let mut y = 0;
 
+    let (input, ansichars) = parsers::parse(&text).unwrap();
+
     for c in ansichars {
         match c {
-            AnsiChar {
-                character: '\n', ..
-            } => {
-                x = 0;
-                y += 1;
-            }
-            AnsiChar {
-                character: '\r', ..
-            } => {
-                x = 0;
-            }
-            _ => {
-                if y < grid.size.1 && x < grid.size.0 {
-                    grid[y as usize][x as usize] = c;
-                    x += 1;
+            AnsiSequence::Character(c) => match c {
+                '\n' => {
+                    y += 1;
+                    x = 0;
                 }
-            }
+                '\r' => {
+                    x = 0;
+                }
+                _ => {
+                    if y < grid.size.1 && x < grid.size.0 {
+                        grid[y as usize][x as usize] =
+                            AnsiChar::new(c, setting.color, [0.0, 0.0, 0.0, 1.0]);
+                        x += 1;
+                    } else if y < grid.size.0 {
+                        y += 1;
+                        x = 0;
+                    }
+                }
+            },
+            _ => {}
         }
     }
 }

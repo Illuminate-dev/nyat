@@ -38,6 +38,7 @@ impl Terminal {
                 Some(mut x) => read_buffer.append(&mut x),
                 None => {
                     let string = String::from_utf8(read_buffer).expect("Invalid UTF-8");
+                    println!("{:#?}", string);
                     display_ansi_text(&mut visible_grid, string);
                     break;
                 }
