@@ -17,6 +17,7 @@ pub struct Terminal {
     pub visible_grid: Grid,
     pub width: u32,
     pub height: u32,
+    pub cursor: (u32, u32),
     pub layout: Layout,
     pub stdout_fd: RawFd,
 }
@@ -25,7 +26,7 @@ impl Terminal {
     pub fn new(layout: Layout) -> Self {
         let (width, height) = layout.calculate();
 
-        let mut visible_grid = Grid::new(width, height);
+        let visible_grid = Grid::new(width, height);
 
         let default_shell = std::env::var("SHELL").unwrap_or_else(|_| "sh".to_string());
 
@@ -33,25 +34,28 @@ impl Terminal {
 
         let mut read_buffer = vec![];
 
+        let mut term = Self {
+            visible_grid,
+            width,
+            height,
+            layout,
+            stdout_fd,
+            cursor: (0, 0),
+        };
+
         loop {
             match Self::read_fd(stdout_fd) {
                 Some(mut x) => read_buffer.append(&mut x),
                 None => {
                     let string = String::from_utf8(read_buffer).expect("Invalid UTF-8");
                     println!("{:#?}", string);
-                    display_ansi_text(&mut visible_grid, string);
+                    display_ansi_text(&mut term, string);
                     break;
                 }
             }
         }
 
-        Self {
-            visible_grid,
-            width,
-            height,
-            layout,
-            stdout_fd,
-        }
+        term
     }
 
     fn spawn_pty_with_shell(shell: String, layout: &Layout, width: u32, height: u32) -> RawFd {

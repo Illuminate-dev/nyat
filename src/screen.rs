@@ -44,7 +44,7 @@ impl Screen {
     }
 
     pub fn render(&mut self) {
-        self.renderer.draw_text(&self.terminal.visible_grid);
+        self.renderer.draw_text(&self.terminal);
         self.renderer.render();
     }
 

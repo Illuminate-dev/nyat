@@ -4,18 +4,14 @@ use winit::{
     event::{ElementState, Event, KeyboardInput, WindowEvent},
 };
 
+use crate::config::Config;
+
 mod config;
 mod display;
 mod layout;
 mod render;
 mod screen;
 mod terminal;
-
-pub struct Config {
-    pub background_color: wgpu::Color,
-    pub scale: f32,
-    pub font_size: f32,
-}
 
 pub async fn run() {
     tracing_subscriber::fmt::init();
@@ -27,11 +23,7 @@ pub async fn run() {
         .with_min_inner_size(PhysicalSize::new(50, 20))
         .build(&event_loop)
         .unwrap();
-    let config = Config {
-        background_color: wgpu::Color::BLACK,
-        scale: 1.0,
-        font_size: 16.0,
-    };
+    let config = Config::default();
     let mut screen = screen::Screen::new(window, config).await;
     screen.color_background();
 

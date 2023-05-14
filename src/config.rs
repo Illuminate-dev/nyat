@@ -1,5 +1,21 @@
 pub struct Config {
     pub color_pallete: ColorPallete,
+    pub background_color: wgpu::Color,
+    pub scale: f32,
+    pub font_size: f32,
+    pub cursor: char,
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            color_pallete: ColorPallete::default(),
+            background_color: wgpu::Color::BLACK,
+            scale: 1.0,
+            font_size: 16.0,
+            cursor: '█',
+        }
+    }
 }
 
 #[derive(Debug)]

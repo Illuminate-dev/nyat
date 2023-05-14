@@ -1,7 +1,4 @@
-use crate::{
-    config::ColorPallete,
-    layout::{AnsiChar, Grid},
-};
+use crate::{config::ColorPallete, layout::AnsiChar, terminal::Terminal};
 
 use self::enums::AnsiSequence;
 
@@ -69,12 +66,11 @@ impl Setting {
     }
 }
 
-pub fn display_ansi_text(grid: &mut Grid, text: String) {
+pub fn display_ansi_text(terminal: &mut Terminal, text: String) {
     // TODO: take config input
     let mut setting = Setting::default();
 
-    let mut x = 0;
-    let mut y = 0;
+    let grid = &mut terminal.visible_grid;
 
     let (_input, ansichars) = parsers::parse(&text).unwrap();
 
@@ -83,26 +79,29 @@ pub fn display_ansi_text(grid: &mut Grid, text: String) {
             AnsiSequence::Character(c) if setting.mode == AnsiMode::Title => {}
             AnsiSequence::Character(c) => match c {
                 '\n' => {
-                    y += 1;
-                    x = 0;
+                    terminal.cursor.1 += 1;
+                    terminal.cursor.0 = 0;
                 }
                 '\r' => {
-                    x = 0;
+                    terminal.cursor.0 = 0;
                 }
                 _ => {
                     if c == 't' {
-                        println!("x: {}, y: {}, {:?}", x, y, setting.mode);
+                        println!(
+                            "x: {}, y: {}, {:?}",
+                            terminal.cursor.0, terminal.cursor.1, setting.mode
+                        );
                     }
-                    if y < grid.size.1 && x < grid.size.0 {
-                        grid[y as usize][x as usize] =
+                    if terminal.cursor.1 < grid.size.1 && terminal.cursor.0 < grid.size.0 {
+                        grid[terminal.cursor.1 as usize][terminal.cursor.0 as usize] =
                             AnsiChar::new(c, setting.color, setting.bg_color);
-                        x += 1;
-                    } else if y < grid.size.0 {
-                        y += 1;
-                        x = 0;
-                        grid[y as usize][x as usize] =
+                        terminal.cursor.0 += 1;
+                    } else if terminal.cursor.1 < grid.size.0 {
+                        terminal.cursor.1 += 1;
+                        terminal.cursor.0 = 0;
+                        grid[terminal.cursor.1 as usize][terminal.cursor.0 as usize] =
                             AnsiChar::new(c, setting.color, setting.bg_color);
-                        x += 1;
+                        terminal.cursor.0 += 1;
                     }
                 }
             },
@@ -115,6 +114,47 @@ pub fn display_ansi_text(grid: &mut Grid, text: String) {
             AnsiSequence::Bell => {
                 setting.mode = AnsiMode::Print;
             }
+            AnsiSequence::CursorUp(n) => {
+                if terminal.cursor.1 >= n as u32 {
+                    terminal.cursor.1 -= n as u32;
+                } else {
+                    terminal.cursor.1 = 0;
+                }
+            }
+            AnsiSequence::CursorDown(n) => {
+                if terminal.cursor.1 + (n as u32) < grid.size.1 {
+                    terminal.cursor.1 += n as u32;
+                } else {
+                    terminal.cursor.1 = grid.size.1 - 1;
+                }
+            }
+            AnsiSequence::CursorForward(n) => {
+                if terminal.cursor.0 + (n as u32) < grid.size.0 {
+                    terminal.cursor.0 += n as u32;
+                } else {
+                    terminal.cursor.0 = grid.size.0 - 1;
+                }
+            }
+            AnsiSequence::CursorBackward(n) => {
+                if terminal.cursor.0 >= n as u32 {
+                    terminal.cursor.0 -= n as u32;
+                } else {
+                    terminal.cursor.0 = 0;
+                }
+            }
+            AnsiSequence::Escape => {}
+            AnsiSequence::CursorPos(x, y) => {
+                if x > grid.size.0 as u16 {
+                    terminal.cursor.0 = grid.size.0 - 1;
+                } else {
+                    terminal.cursor.0 = x as u32;
+                }
+                if y > grid.size.1 as u16 {
+                    terminal.cursor.1 = grid.size.1 - 1;
+                } else {
+                    terminal.cursor.1 = y as u32;
+                }
+            }
             _ => {}
         }
     }
@@ -122,15 +162,16 @@ pub fn display_ansi_text(grid: &mut Grid, text: String) {
 
 #[cfg(test)]
 mod tests {
-    use crate::layout::Row;
+    use crate::layout::{Layout, Row};
 
     use super::*;
 
     #[test]
     fn test_base() {
-        let mut grid = Grid::new(5, 10);
+        let mut terminal =
+            Terminal::new(Layout::new(1.0, 16.0, (16 * 5) as f32, (8 * 5 + 5) as f32));
 
-        display_ansi_text(&mut grid, "t".to_string());
+        display_ansi_text(&mut terminal, "t".to_string());
 
         let pallete = ColorPallete::default();
 
@@ -142,16 +183,17 @@ mod tests {
             AnsiChar::default(),
         ]);
 
-        assert_eq!(grid[0], expected_row);
+        assert_eq!(terminal.visible_grid[0], expected_row);
     }
 
     #[test]
     fn test_csi_red() {
-        let mut grid = Grid::new(5, 10);
+        let mut terminal =
+            Terminal::new(Layout::new(1.0, 16.0, (16 * 5) as f32, (8 * 5 + 5) as f32));
 
         let pallete = ColorPallete::default();
 
-        display_ansi_text(&mut grid, "\x1b[31mt".to_string());
+        display_ansi_text(&mut terminal, "\x1b[31mt".to_string());
 
         let expected_row = Row::new(vec![
             AnsiChar::new('t', pallete.red, [0.0, 0.0, 0.0, 1.0]),
@@ -161,16 +203,17 @@ mod tests {
             AnsiChar::default(),
         ]);
 
-        assert_eq!(grid[0], expected_row);
+        assert_eq!(terminal.visible_grid[0], expected_row);
     }
 
     #[test]
     fn test_csi_reset() {
-        let mut grid = Grid::new(5, 10);
+        let mut terminal =
+            Terminal::new(Layout::new(1.0, 16.0, (16 * 5) as f32, (8 * 5 + 5) as f32));
 
         let pallete = ColorPallete::default();
 
-        display_ansi_text(&mut grid, "\x1b[31mt\x1b[0mt".to_string());
+        display_ansi_text(&mut terminal, "\x1b[31mt\x1b[0mt".to_string());
 
         let expected_row = Row::new(vec![
             AnsiChar::new('t', pallete.red, [0.0, 0.0, 0.0, 1.0]),
@@ -180,6 +223,6 @@ mod tests {
             AnsiChar::default(),
         ]);
 
-        assert_eq!(grid[0], expected_row);
+        assert_eq!(terminal.visible_grid[0], expected_row);
     }
 }

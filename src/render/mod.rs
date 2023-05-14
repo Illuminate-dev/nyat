@@ -2,7 +2,7 @@ use wgpu::Color;
 // renderer has a height, width, and scale. It uses these values to render text to screen
 use wgpu_glyph::{ab_glyph::FontArc, Section, Text};
 
-use crate::layout::Grid;
+use crate::{layout::Grid, terminal::Terminal};
 
 mod state;
 
@@ -95,11 +95,22 @@ impl Renderer {
         self.state.resize(new_size);
     }
 
-    pub fn draw_text(&mut self, grid: &Grid) {
+    pub fn draw_text(&mut self, terminal: &Terminal) {
+        let grid = &terminal.visible_grid;
+
         for i in 0..(grid.size.1 as usize) {
             let mut texts: Vec<Text> = vec![];
-            for ansichar in grid[i].iter() {
-                texts.push(ansichar.text(self.font_size));
+            for j in 0..grid[i].length as usize {
+                if terminal.cursor == (j as u32, i as u32) {
+                    texts.push(
+                        Text::new("█")
+                            .with_color([1.0, 1.0, 1.0, 1.0])
+                            .with_scale(self.font_size),
+                    );
+                    println!("cursor: {:?}", terminal.cursor);
+                    continue;
+                }
+                texts.push(grid[i][j].text(self.font_size));
             }
 
             // TODO: calculate different heights, etc.
