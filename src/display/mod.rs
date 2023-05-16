@@ -155,6 +155,8 @@ pub fn display_ansi_text(terminal: &mut Terminal, text: String) {
                     terminal.cursor.1 = y as u32;
                 }
             }
+            AnsiSequence::ShowCursor => terminal.visible_cursor = true,
+            AnsiSequence::HideCursor => terminal.visible_cursor = false,
             _ => {}
         }
     }

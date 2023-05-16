@@ -11,4 +11,6 @@ pub enum AnsiSequence {
     SetTitleMode,
     SetBracketedPasteMode(bool),
     Bell,
+    ShowCursor,
+    HideCursor,
 }

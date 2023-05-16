@@ -101,7 +101,7 @@ impl Renderer {
         for i in 0..(grid.size.1 as usize) {
             let mut texts: Vec<Text> = vec![];
             for j in 0..grid[i].length as usize {
-                if terminal.cursor == (j as u32, i as u32) {
+                if terminal.cursor == (j as u32, i as u32) && terminal.visible_cursor {
                     texts.push(
                         Text::new("█")
                             .with_color([1.0, 1.0, 1.0, 1.0])

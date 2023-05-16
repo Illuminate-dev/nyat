@@ -18,6 +18,7 @@ pub struct Terminal {
     pub width: u32,
     pub height: u32,
     pub cursor: (u32, u32),
+    pub visible_cursor: bool,
     pub layout: Layout,
     pub stdout_fd: RawFd,
 }
@@ -41,6 +42,7 @@ impl Terminal {
             layout,
             stdout_fd,
             cursor: (0, 0),
+            visible_cursor: true,
         };
 
         loop {
@@ -72,7 +74,10 @@ impl Terminal {
                     let stout_fd = x.master;
 
                     if let ForkResult::Child = x.fork_result {
-                        Command::new(&shell).spawn().expect("Failed to spawn shell");
+                        Command::new(&shell)
+                            .arg("--login")
+                            .spawn()
+                            .expect("Failed to spawn shell");
                         std::thread::sleep(std::time::Duration::from_millis(200));
                         std::process::exit(0);
                     }

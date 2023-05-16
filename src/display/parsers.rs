@@ -133,6 +133,8 @@ tag_parser!(
     "[?2004l",
     AnsiSequence::SetBracketedPasteMode(false)
 );
+tag_parser!(show_cursor, "[?25h", AnsiSequence::ShowCursor);
+tag_parser!(hide_cursor, "[?25l", AnsiSequence::HideCursor);
 
 fn combined(input: &str) -> Res {
     alt((
@@ -146,6 +148,8 @@ fn combined(input: &str) -> Res {
         set_title_mode,
         set_bracketed_paste_mode_on,
         set_bracketed_paste_mode_off,
+        show_cursor,
+        hide_cursor,
     ))(input)
 }
 
