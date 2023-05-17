@@ -13,4 +13,7 @@ pub enum AnsiSequence {
     Bell,
     ShowCursor,
     HideCursor,
+    AutoWrap(bool),
+    EraseInLine(u8),
+    EraseInDisplay(u8),
 }

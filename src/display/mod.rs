@@ -86,12 +86,6 @@ pub fn display_ansi_text(terminal: &mut Terminal, text: String) {
                     terminal.cursor.0 = 0;
                 }
                 _ => {
-                    if c == 't' {
-                        println!(
-                            "x: {}, y: {}, {:?}",
-                            terminal.cursor.0, terminal.cursor.1, setting.mode
-                        );
-                    }
                     if terminal.cursor.1 < grid.size.1 && terminal.cursor.0 < grid.size.0 {
                         grid[terminal.cursor.1 as usize][terminal.cursor.0 as usize] =
                             AnsiChar::new(c, setting.color, setting.bg_color);
@@ -157,6 +151,25 @@ pub fn display_ansi_text(terminal: &mut Terminal, text: String) {
             }
             AnsiSequence::ShowCursor => terminal.visible_cursor = true,
             AnsiSequence::HideCursor => terminal.visible_cursor = false,
+            AnsiSequence::AutoWrap(state) => {}
+            AnsiSequence::EraseInLine(n) => match n {
+                0 => {
+                    for i in terminal.cursor.0..grid.size.0 {
+                        grid[terminal.cursor.1 as usize][i as usize] = AnsiChar::default();
+                    }
+                }
+                _ => {}
+            },
+            AnsiSequence::EraseInDisplay(n) => match n {
+                0 => {
+                    for i in terminal.cursor.1..grid.size.1 {
+                        for j in terminal.cursor.0..grid.size.0 {
+                            grid[i as usize][j as usize] = AnsiChar::default();
+                        }
+                    }
+                }
+                _ => {}
+            },
             _ => {}
         }
     }

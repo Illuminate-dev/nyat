@@ -122,6 +122,44 @@ fn graphics_mode(input: &str) -> Res {
     Ok((input, AnsiSequence::SetGraphicsMode(v)))
 }
 
+fn erase_in_line(input: &str) -> Res {
+    let (input, _) = tag("[")(input)?;
+
+    let (input, n) = digit0(input)?;
+
+    let n = parse_number_or_default(n, 0);
+
+    let (input, _) = tag("K")(input)?;
+
+    if n > 3 {
+        Err(nom::Err::Error(nom::error::Error::new(
+            input,
+            nom::error::ErrorKind::TooLarge,
+        )))
+    } else {
+        Ok((input, AnsiSequence::EraseInLine(n as u8)))
+    }
+}
+
+fn erase_in_display(input: &str) -> Res {
+    let (input, _) = tag("[")(input)?;
+
+    let (input, n) = digit0(input)?;
+
+    let n = parse_number_or_default(n, 0);
+
+    let (input, _) = tag("J")(input)?;
+
+    if n > 3 {
+        Err(nom::Err::Error(nom::error::Error::new(
+            input,
+            nom::error::ErrorKind::TooLarge,
+        )))
+    } else {
+        Ok((input, AnsiSequence::EraseInDisplay(n as u8)))
+    }
+}
+
 tag_parser!(set_title_mode, "]0;", AnsiSequence::SetTitleMode);
 tag_parser!(
     set_bracketed_paste_mode_on,
@@ -135,6 +173,8 @@ tag_parser!(
 );
 tag_parser!(show_cursor, "[?25h", AnsiSequence::ShowCursor);
 tag_parser!(hide_cursor, "[?25l", AnsiSequence::HideCursor);
+tag_parser!(autowrap_on, "[?7h", AnsiSequence::AutoWrap(true));
+tag_parser!(autowrap_off, "[?7l", AnsiSequence::AutoWrap(false));
 
 fn combined(input: &str) -> Res {
     alt((
@@ -150,6 +190,10 @@ fn combined(input: &str) -> Res {
         set_bracketed_paste_mode_off,
         show_cursor,
         hide_cursor,
+        autowrap_on,
+        autowrap_off,
+        erase_in_line,
+        erase_in_display,
     ))(input)
 }
 
