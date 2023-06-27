@@ -1,16 +1,22 @@
-use std::{os::fd::RawFd, process::Command};
+use std::{
+    ffi::{CStr, CString},
+    os::fd::AsRawFd,
+    sync::mpsc::Sender,
+};
 
 use nix::{
-    pty::{forkpty, Winsize},
-    unistd::ForkResult,
+    libc::{ioctl, TIOCSCTTY},
+    pty::{grantpt, posix_openpt, ptsname, unlockpt},
+    sys::{
+        select::{select, FdSet},
+        termios::{cfmakeraw, tcsetattr, SetArg},
+    },
+    unistd::{close, dup, execvp, fork, read, setsid},
 };
 
 // holds grid and later on will hold the cursor position
 // Also will hold psuedo terminal
-use crate::{
-    display::display_ansi_text,
-    layout::{Grid, Layout},
-};
+use crate::layout::{Grid, Layout};
 
 #[derive(Debug)]
 pub struct Terminal {
@@ -20,7 +26,8 @@ pub struct Terminal {
     pub cursor: (u32, u32),
     pub visible_cursor: bool,
     pub layout: Layout,
-    pub stdout_fd: RawFd,
+    pub reciever: std::sync::mpsc::Receiver<String>,
+    pub transmitter: std::sync::mpsc::Sender<String>,
 }
 
 impl Terminal {
@@ -31,70 +38,129 @@ impl Terminal {
 
         let default_shell = std::env::var("SHELL").unwrap_or_else(|_| "sh".to_string());
 
-        let stdout_fd = Self::spawn_pty_with_shell(default_shell, &layout, width, height);
+        let (tx, reciever) = std::sync::mpsc::channel();
 
-        let mut read_buffer = vec![];
+        let transmitter = Self::spawn_pty_with_shell(default_shell, &layout, width, height, tx);
 
-        let mut term = Self {
+        let term = Self {
             visible_grid,
             width,
             height,
             layout,
-            stdout_fd,
             cursor: (0, 0),
             visible_cursor: true,
+            reciever,
+            transmitter,
         };
-
-        loop {
-            match Self::read_fd(stdout_fd) {
-                Some(mut x) => read_buffer.append(&mut x),
-                None => {
-                    let string = String::from_utf8(read_buffer).expect("Invalid UTF-8");
-                    println!("{:#?}", string);
-                    display_ansi_text(&mut term, string);
-                    break;
-                }
-            }
-        }
 
         term
     }
 
-    fn spawn_pty_with_shell(shell: String, layout: &Layout, width: u32, height: u32) -> RawFd {
-        let winsize = Winsize {
-            ws_row: width as u16,
-            ws_col: height as u16,
-            ws_xpixel: layout.px_width as u16,
-            ws_ypixel: layout.px_height as u16,
-        };
+    fn spawn_pty_with_shell(
+        shell: String,
+        _layout: &Layout,
+        _width: u32,
+        _height: u32,
+        transmitter: Sender<String>,
+    ) -> Sender<String> {
+        let fdm = posix_openpt(nix::fcntl::OFlag::O_RDWR).unwrap();
 
-        unsafe {
-            match forkpty(Some(&winsize), None) {
-                Ok(x) => {
-                    let stout_fd = x.master;
+        grantpt(&fdm).unwrap();
+        unlockpt(&fdm).unwrap();
 
-                    if let ForkResult::Child = x.fork_result {
-                        Command::new(&shell)
-                            .arg("--login")
-                            .spawn()
-                            .expect("Failed to spawn shell");
-                        std::thread::sleep(std::time::Duration::from_millis(200));
-                        std::process::exit(0);
+        let pts_name = unsafe { ptsname(&fdm) }.unwrap();
+
+        let fds = nix::fcntl::open(
+            &std::path::PathBuf::from(pts_name),
+            nix::fcntl::OFlag::O_RDWR,
+            nix::sys::stat::Mode::empty(),
+        )
+        .unwrap();
+
+        let (tx, reciever) = std::sync::mpsc::channel::<String>();
+
+        std::thread::spawn(move || match unsafe { fork() } {
+            Ok(res) => {
+                if res.is_parent() {
+                    nix::unistd::close(fds).unwrap();
+
+                    loop {
+                        let mut fdset = FdSet::new();
+                        fdset.insert(0);
+                        fdset.insert(fdm.as_raw_fd());
+
+                        let rc = select(fdm.as_raw_fd() + 1, Some(&mut fdset), None, None, None);
+
+                        match rc {
+                            Ok(_) => {
+                                if let Ok(x) = reciever.try_recv() {
+                                    nix::unistd::write(fdm.as_raw_fd(), x.as_bytes()).unwrap();
+                                }
+
+                                if fdset.contains(fdm.as_raw_fd()) {
+                                    let mut input = [0u8; 65536];
+
+                                    let rc = read(fdm.as_raw_fd(), &mut input).unwrap();
+
+                                    if rc > 0 {
+                                        let s = String::from_utf8(input[..rc].to_vec()).unwrap();
+
+                                        match transmitter.send(s) {
+                                            Ok(_) => {}
+                                            Err(e) => {
+                                                panic!("send failed: {}", e);
+                                            }
+                                        };
+                                    }
+                                }
+                            }
+                            Err(e) => {
+                                panic!("select failed: {}", e);
+                            }
+                        }
                     }
-                    stout_fd
-                }
-                Err(e) => panic!("Error: {}", e),
-            }
-        }
-    }
+                } else {
+                    close(fdm.as_raw_fd()).unwrap();
 
-    fn read_fd(fd: RawFd) -> Option<Vec<u8>> {
-        let mut buf = [0; 65536];
-        let read_result = nix::unistd::read(fd, &mut buf);
-        match read_result {
-            Ok(bytes_read) => Some(buf[..bytes_read].to_vec()),
-            Err(_) => None,
-        }
+                    let slave_orig_settings = nix::sys::termios::tcgetattr(fds).unwrap();
+                    let mut new_term_settings = slave_orig_settings;
+                    cfmakeraw(&mut new_term_settings);
+                    tcsetattr(fds, SetArg::TCSANOW, &new_term_settings).unwrap();
+
+                    close(0).unwrap();
+                    close(1).unwrap();
+                    close(2).unwrap();
+
+                    dup(fds).unwrap();
+                    dup(fds).unwrap();
+                    dup(fds).unwrap();
+
+                    close(fds).unwrap();
+
+                    setsid().unwrap();
+
+                    unsafe {
+                        ioctl(0, TIOCSCTTY, 1);
+                    };
+
+                    {
+                        let cmd_arr = shell
+                            .split_whitespace()
+                            .map(|s| CString::new(s).unwrap())
+                            .collect::<Vec<CString>>();
+
+                        let cmd_arr = cmd_arr.iter().map(|s| s.as_c_str()).collect::<Vec<&CStr>>();
+
+                        let _rc = execvp(cmd_arr[0], &cmd_arr);
+                    }
+                }
+            }
+            Err(e) => {
+                panic!("fork failed: {}", e);
+            }
+        });
+
+        tx
     }
 
     pub fn resize(&mut self, size: winit::dpi::PhysicalSize<u32>) {

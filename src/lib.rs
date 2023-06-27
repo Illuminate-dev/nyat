@@ -63,7 +63,9 @@ pub async fn run() {
                     },
                 ..
             } => match virtual_keycode {
-                Some(keycode) => screen.key_pressed(keycode),
+                Some(keycode) => {
+                    screen.key_pressed(keycode);
+                }
                 None => {}
             },
             _ => (),
