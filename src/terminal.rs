@@ -6,6 +6,7 @@ use std::{
 
 use nix::{
     libc::{ioctl, TIOCSCTTY},
+    poll::{PollFd, PollFlags},
     pty::{grantpt, posix_openpt, ptsname, unlockpt},
     sys::{
         select::{select, FdSet},
@@ -85,37 +86,26 @@ impl Terminal {
                     nix::unistd::close(fds).unwrap();
 
                     loop {
-                        let mut fdset = FdSet::new();
-                        fdset.insert(0);
-                        fdset.insert(fdm.as_raw_fd());
+                        if let Ok(x) = reciever.try_recv() {
+                            nix::unistd::write(fdm.as_raw_fd(), x.as_bytes()).unwrap();
+                        }
+                        let pollfd = PollFd::new(fdm.as_raw_fd(), PollFlags::POLLIN);
 
-                        let rc = select(fdm.as_raw_fd() + 1, Some(&mut fdset), None, None, None);
+                        let rc = nix::poll::poll(&mut [pollfd], 10).unwrap();
+                        // let rc = 1;
 
-                        match rc {
-                            Ok(_) => {
-                                if let Ok(x) = reciever.try_recv() {
-                                    nix::unistd::write(fdm.as_raw_fd(), x.as_bytes()).unwrap();
-                                }
+                        if rc > 0 {
+                            let mut input = [0u8; 65536];
+                            let rc = read(fdm.as_raw_fd(), &mut input).unwrap();
+                            if rc > 0 {
+                                let s = String::from_utf8(input[..rc].to_vec()).unwrap();
 
-                                if fdset.contains(fdm.as_raw_fd()) {
-                                    let mut input = [0u8; 65536];
-
-                                    let rc = read(fdm.as_raw_fd(), &mut input).unwrap();
-
-                                    if rc > 0 {
-                                        let s = String::from_utf8(input[..rc].to_vec()).unwrap();
-
-                                        match transmitter.send(s) {
-                                            Ok(_) => {}
-                                            Err(e) => {
-                                                panic!("send failed: {}", e);
-                                            }
-                                        };
+                                match transmitter.send(s) {
+                                    Ok(_) => {}
+                                    Err(e) => {
+                                        panic!("send failed: {}", e);
                                     }
-                                }
-                            }
-                            Err(e) => {
-                                panic!("select failed: {}", e);
+                                };
                             }
                         }
                     }
@@ -171,4 +161,15 @@ impl Terminal {
         println!("height: {}, width: {}", self.height, self.width);
         self.visible_grid.resize(self.width, self.height);
     }
+
+    pub fn key_pressed(&mut self, key: &winit::event::VirtualKeyCode) {
+        match key {
+            k => {
+                self.transmitter.send("pwd\n".to_string()).unwrap();
+                println!("sent pwd");
+            }
+            _ => {}
+        }
+    }
 }
+

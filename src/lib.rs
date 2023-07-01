@@ -73,6 +73,9 @@ pub async fn run() {
         Event::RedrawRequested(_) => {
             screen.render();
         }
+        Event::MainEventsCleared => {
+            screen.check_term();
+        }
         _ => (),
     });
 }

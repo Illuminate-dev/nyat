@@ -1,6 +1,6 @@
 // Pieces the renderer and the terminal together
 
-use crate::{render::Renderer, terminal::Terminal};
+use crate::{display::display_ansi_text, render::Renderer, terminal::Terminal};
 
 pub struct Screen {
     renderer: Renderer,
@@ -50,5 +50,13 @@ impl Screen {
 
     pub fn key_pressed(&mut self, key: &winit::event::VirtualKeyCode) {
         println!("key pressed: {:?}", key);
+        self.terminal.key_pressed(key);
+    }
+
+    pub fn check_term(&mut self) {
+        if let Ok(s) = self.terminal.reciever.try_recv() {
+            display_ansi_text(&mut self.terminal, s);
+            self.render();
+        }
     }
 }
