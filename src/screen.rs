@@ -7,7 +7,6 @@ pub struct Screen {
     pub terminal: Terminal,
     background_color: wgpu::Color,
 }
-
 impl Screen {
     pub async fn new(window: winit::window::Window, config: crate::Config) -> Self {
         let size = window.inner_size();
@@ -48,8 +47,8 @@ impl Screen {
         self.renderer.render();
     }
 
-    pub fn key_pressed(&mut self, key: &winit::event::VirtualKeyCode) {
-        println!("key pressed: {:?}", key);
+    pub fn key_pressed(&mut self, key: &winit::event::KeyboardInput) {
+        println!("key pressed: {:?}", key.virtual_keycode);
         self.terminal.key_pressed(key);
     }
 

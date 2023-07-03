@@ -4,6 +4,8 @@ use std::{
     sync::mpsc::Sender,
 };
 
+use winit::event::{ModifiersState, VirtualKeyCode};
+
 use nix::{
     libc::{ioctl, TIOCSCTTY},
     poll::{PollFd, PollFlags},
@@ -29,6 +31,7 @@ pub struct Terminal {
     pub layout: Layout,
     pub reciever: std::sync::mpsc::Receiver<String>,
     pub transmitter: std::sync::mpsc::Sender<String>,
+    pub modifiers: winit::event::ModifiersState,
 }
 
 impl Terminal {
@@ -52,6 +55,7 @@ impl Terminal {
             visible_cursor: true,
             reciever,
             transmitter,
+            modifiers: ModifiersState::empty(),
         };
 
         term
@@ -162,14 +166,66 @@ impl Terminal {
         self.visible_grid.resize(self.width, self.height);
     }
 
-    pub fn key_pressed(&mut self, key: &winit::event::VirtualKeyCode) {
-        match key {
-            k => {
-                self.transmitter.send("pwd\n".to_string()).unwrap();
-                println!("sent pwd");
-            }
-            _ => {}
+    pub fn key_pressed(&mut self, key: &winit::event::KeyboardInput) {
+        if key.state != winit::event::ElementState::Pressed {
+            return;
         }
+        self.transmitter.send(self.key_to_string(key)).unwrap();
+    }
+
+    fn key_to_string(&self, key: &winit::event::KeyboardInput) -> String {
+        let mut s = String::new();
+
+        if let Some(keycode) = key.virtual_keycode {
+            match keycode {
+                VirtualKeyCode::A => s.push('a'),
+                VirtualKeyCode::B => s.push('b'),
+                VirtualKeyCode::C => s.push('c'),
+                VirtualKeyCode::D => s.push('d'),
+                VirtualKeyCode::E => s.push('e'),
+                VirtualKeyCode::F => s.push('f'),
+                VirtualKeyCode::G => s.push('g'),
+                VirtualKeyCode::H => s.push('h'),
+                VirtualKeyCode::I => s.push('i'),
+                VirtualKeyCode::J => s.push('j'),
+                VirtualKeyCode::K => s.push('k'),
+                VirtualKeyCode::L => s.push('l'),
+                VirtualKeyCode::M => s.push('m'),
+                VirtualKeyCode::N => s.push('n'),
+                VirtualKeyCode::O => s.push('o'),
+                VirtualKeyCode::P => s.push('p'),
+                VirtualKeyCode::Q => s.push('q'),
+                VirtualKeyCode::R => s.push('r'),
+                VirtualKeyCode::S => s.push('s'),
+                VirtualKeyCode::T => s.push('t'),
+                VirtualKeyCode::U => s.push('u'),
+                VirtualKeyCode::V => s.push('v'),
+                VirtualKeyCode::W => s.push('w'),
+                VirtualKeyCode::X => s.push('x'),
+                VirtualKeyCode::Y => s.push('y'),
+                VirtualKeyCode::Z => s.push('z'),
+                VirtualKeyCode::Key1 => s.push('1'),
+                VirtualKeyCode::Key2 => s.push('2'),
+                VirtualKeyCode::Key3 => s.push('3'),
+                VirtualKeyCode::Key4 => s.push('4'),
+                VirtualKeyCode::Key5 => s.push('5'),
+                VirtualKeyCode::Key6 => s.push('6'),
+                VirtualKeyCode::Key7 => s.push('7'),
+                VirtualKeyCode::Key8 => s.push('8'),
+                VirtualKeyCode::Key9 => s.push('9'),
+                VirtualKeyCode::Key0 => s.push('0'),
+                VirtualKeyCode::Space => s.push(' '),
+                VirtualKeyCode::Back => s.push('\x08'),
+                VirtualKeyCode::Return => s.push('\n'),
+                _ => {}
+            }
+        }
+
+        if self.modifiers.contains(winit::event::ModifiersState::SHIFT) {
+            s = s.to_uppercase();
+        }
+
+        s
     }
 }
 

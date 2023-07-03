@@ -11,9 +11,16 @@ pub enum AnsiSequence {
     SetTitleMode,
     SetBracketedPasteMode(bool),
     Bell,
+    Back,
     ShowCursor,
     HideCursor,
     AutoWrap(bool),
     EraseInLine(u8),
     EraseInDisplay(u8),
+    SetCharSet(CharSet),
+}
+
+#[derive(Debug, PartialEq)]
+pub enum CharSet {
+    ASCII,
 }

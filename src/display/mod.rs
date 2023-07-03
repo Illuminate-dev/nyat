@@ -1,4 +1,4 @@
-use crate::{config::ColorPallete, layout::AnsiChar, terminal::Terminal};
+use crate::{config::ColorPallete, display::enums::CharSet, layout::AnsiChar, terminal::Terminal};
 
 use self::enums::AnsiSequence;
 
@@ -34,12 +34,22 @@ impl Setting {
     pub fn set_graphics_mode(&mut self, code: Vec<u8>) {
         match code.len() {
             0 => self.color = self.pallete.white,
+            5 => {
+                if code[0] == 38 && code[1] == 2 {
+                    self.set_graphics_mode_rgb(code[2], code[3], code[4]);
+                    println!("test");
+                }
+            }
             x => {
                 for i in 0..x {
                     self.set_graphics_mode_1(code[i]);
                 }
             }
         }
+    }
+
+    fn set_graphics_mode_rgb(&mut self, r: u8, g: u8, b: u8) {
+        self.color = [r as f32 / 255.0, g as f32 / 255.0, b as f32 / 255.0, 1.0];
     }
 
     fn set_graphics_mode_1(&mut self, code: u8) {
@@ -70,11 +80,14 @@ pub fn display_ansi_text(terminal: &mut Terminal, text: String) {
     // TODO: take config input
     let mut setting = Setting::default();
 
+    println!("{:?}", text);
+
     let grid = &mut terminal.visible_grid;
 
     let (_input, ansichars) = parsers::parse(&text).unwrap();
 
     for c in ansichars {
+        println!("{:?}", c);
         match c {
             AnsiSequence::Character(c) if setting.mode == AnsiMode::Title => {}
             AnsiSequence::Character(c) => match c {
@@ -107,6 +120,11 @@ pub fn display_ansi_text(terminal: &mut Terminal, text: String) {
             }
             AnsiSequence::Bell => {
                 setting.mode = AnsiMode::Print;
+            }
+            AnsiSequence::Back => {
+                if terminal.cursor.0 > 0 {
+                    terminal.cursor.0 -= 1;
+                }
             }
             AnsiSequence::CursorUp(n) => {
                 if terminal.cursor.1 >= n as u32 {
@@ -170,6 +188,9 @@ pub fn display_ansi_text(terminal: &mut Terminal, text: String) {
                 }
                 _ => {}
             },
+            AnsiSequence::SetCharSet(CharSet::ASCII) => {
+                // todo
+            }
             _ => {}
         }
     }

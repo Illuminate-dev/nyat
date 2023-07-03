@@ -54,20 +54,12 @@ pub async fn run() {
                 // TODO: seperate scale setting?
                 screen.resize(**new_inner_size);
             }
-            WindowEvent::KeyboardInput {
-                input:
-                    KeyboardInput {
-                        virtual_keycode,
-                        state: ElementState::Pressed,
-                        ..
-                    },
-                ..
-            } => match virtual_keycode {
-                Some(keycode) => {
-                    screen.key_pressed(keycode);
-                }
-                None => {}
-            },
+            WindowEvent::KeyboardInput { input, .. } => {
+                screen.key_pressed(input);
+            }
+            WindowEvent::ModifiersChanged(modifiers) => {
+                screen.terminal.modifiers = *modifiers;
+            }
             _ => (),
         },
         Event::RedrawRequested(_) => {

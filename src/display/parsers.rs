@@ -6,7 +6,7 @@ use nom::combinator::opt;
 use nom::multi::many0;
 use nom::IResult;
 
-use super::enums::AnsiSequence;
+use super::enums::{AnsiSequence, CharSet};
 
 type Res<'a> = IResult<&'a str, AnsiSequence>;
 
@@ -175,6 +175,7 @@ tag_parser!(show_cursor, "[?25h", AnsiSequence::ShowCursor);
 tag_parser!(hide_cursor, "[?25l", AnsiSequence::HideCursor);
 tag_parser!(autowrap_on, "[?7h", AnsiSequence::AutoWrap(true));
 tag_parser!(autowrap_off, "[?7l", AnsiSequence::AutoWrap(false));
+tag_parser!(set_char_set, "(B", AnsiSequence::SetCharSet(CharSet::ASCII));
 
 fn combined(input: &str) -> Res {
     alt((
@@ -194,6 +195,7 @@ fn combined(input: &str) -> Res {
         autowrap_off,
         erase_in_line,
         erase_in_display,
+        set_char_set,
     ))(input)
 }
 
@@ -210,9 +212,10 @@ fn parse_char(input: &str) -> Res {
 }
 
 tag_parser!(parse_bel, "\u{7}", AnsiSequence::Bell);
+tag_parser!(parse_back, "\u{8}", AnsiSequence::Back);
 
 pub fn parse(input: &str) -> IResult<&str, Vec<AnsiSequence>> {
-    many0(alt((parse_escape, parse_bel, parse_char)))(input)
+    many0(alt((parse_escape, parse_bel, parse_back, parse_char)))(input)
 }
 
 #[cfg(test)]
